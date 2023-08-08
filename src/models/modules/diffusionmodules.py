@@ -10,7 +10,7 @@ class Swish(nn.Module):
         super().__init__()
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
-        return x * nn.Sigmoid(x)
+        return x * torch.sigmoid(x)
 
 
 class GroupNorm(nn.Module):
@@ -167,7 +167,7 @@ class Encoder(nn.Module):
         channels: int,
         channel_multipliers: List[int],
         n_resnet_blocks: int,
-        in_channels: int,
+        img_channels: int,
         z_channels: int
     ):
         """
@@ -175,7 +175,7 @@ class Encoder(nn.Module):
         :param channel_multipliers: are the multiplicative factors for the number of channels in the
             subsequent blocks
         :param n_resnet_blocks: is the number of resnet layers at each resolution
-        :param in_channels: is the number of channels in the image
+        :param img_channels: is the number of channels in the image
         :param z_channels: is the number of channels in the embedding space
         """
         super().__init__()
@@ -185,7 +185,7 @@ class Encoder(nn.Module):
         n_resolutions = len(channel_multipliers)
 
         # Initial $3 \times 3$ convolution layer that maps the image to `channels`
-        self.conv_in = nn.Conv2d(in_channels, channels, 3, stride=1, padding=1)
+        self.conv_in = nn.Conv2d(img_channels, channels, 3, stride=1, padding=1)
 
         # Number of channels in each top level block
         channels_list = [m * channels for m in [1] + channel_multipliers]
@@ -263,7 +263,7 @@ class Decoder(nn.Module):
         channels: int,
         channel_multipliers: List[int],
         n_resnet_blocks: int,
-        out_channels: int,
+        img_channels: int,
         z_channels: int
     ):
         """
@@ -271,7 +271,7 @@ class Decoder(nn.Module):
         :param channel_multipliers: are the multiplicative factors for the number of channels in the
             previous blocks, in reverse order
         :param n_resnet_blocks: is the number of resnet layers at each resolution
-        :param out_channels: is the number of channels in the image
+        :param img_channels: is the number of channels in the image
         :param z_channels: is the number of channels in the embedding space
         """
         super().__init__()
@@ -319,7 +319,9 @@ class Decoder(nn.Module):
         # Map to image space with a $3 \times 3$ convolution
         self.norm_out = GroupNorm(channels)
         self.swish_out = Swish()
-        self.conv_out = nn.Conv2d(channels, out_channels, 3, stride=1, padding=1)
+        self.conv_out = nn.Conv2d(
+            channels, img_channels, kernel_size=3, stride=1, padding=1
+        )
 
     def forward(self, z: torch.Tensor):
         """
@@ -349,3 +351,28 @@ class Decoder(nn.Module):
 
         #
         return img
+
+
+if __name__ == "__main__":
+    IMG_CHANNELS = 3
+    CHANNEL_MULTIPLIERS = [1, 1, 2, 2, 4, 4]
+    Z_CHANNELS = 64
+
+    encoder = Encoder(
+        channels=64,
+        channel_multipliers=CHANNEL_MULTIPLIERS,
+        n_resnet_blocks=2,
+        img_channels=IMG_CHANNELS,
+        z_channels=Z_CHANNELS,
+    )
+    decoder = Decoder(
+        channels=64,
+        channel_multipliers=CHANNEL_MULTIPLIERS,
+        n_resnet_blocks=2,
+        img_channels=IMG_CHANNELS,
+        z_channels=2 * Z_CHANNELS,
+    )
+    img = torch.randn(4, IMG_CHANNELS, 256, 256)
+    print(encoder(img).shape)
+    print(decoder(encoder(img)).shape)
+    # print(encoder)
