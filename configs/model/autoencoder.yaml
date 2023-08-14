@@ -6,7 +6,6 @@ loss:
   kl_weight: 0.000001
   disc_weight: 0.5
   disc_in_channels: ${data.image_channels}
-  
 
 defaults:
   - autoencoderconfig: autoencoder_kl_64x8x8.yaml

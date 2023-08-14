@@ -25,7 +25,9 @@ class MNISTDataModule(LightningDataModule):
         # also ensures init params will be stored in ckpt
         self.save_hyperparameters(logger=False)
         self.transforms = transform
-
+        self.data_train = None
+        self.data_val = None
+        
     def prepare_data(self):
         """Download data if needed.
 
@@ -40,11 +42,9 @@ class MNISTDataModule(LightningDataModule):
         This method is called by lightning with both `trainer.fit()` and `trainer.test()`, so be
         careful not to execute things like random split twice!
         """
-        if stage == "fit" or stage is None:
+        if not self.data_train and not self.data_val:
             self.data_train = MNIST(self.hparams.data_dir, train=True, transform=self.transforms)
-
-        if stage == "test" or stage is None:
-            self.data_test = MNIST(self.hparams.data_dir, train=False, transform=self.transforms)
+            self.data_val = MNIST(self.hparams.data_dir, train=False, transform=self.transforms)
 
     def train_dataloader(self):
         return DataLoader(
@@ -55,9 +55,9 @@ class MNISTDataModule(LightningDataModule):
             drop_last=True
         )
 
-    def test_dataloader(self):
+    def val_dataloader(self):
         return DataLoader(
-            dataset=self.data_test,
+            dataset=self.data_val,
             batch_size=self.hparams.batch_size,
             num_workers=self.hparams.num_workers,
         )

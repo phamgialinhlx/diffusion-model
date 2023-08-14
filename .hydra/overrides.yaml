@@ -1,0 +1,4 @@
+- trainer=gpu
+- trainer.devices=2
+- data=cifar
+- data.batch_size=256

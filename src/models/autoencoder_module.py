@@ -13,22 +13,6 @@ pyrootutils.setup_root(__file__, indicator=".project-root", pythonpath=True)
 from src.models.modules.diffusionmodules import Encoder, Decoder
 from src.models.modules.distributions import DiagonalGaussianDistribution
 
-class AutoencoderConfig:
-    def __init__(
-        self,
-        channels: 64,
-        channel_multipliers: [1, 1, 2, 2, 4, 4],
-        n_resnet_blocks: 2,
-        img_channels: 3,
-        z_channels: 64,
-    ):
-        super().__init__()
-        self.channels = channels
-        self.channel_multipliers = channel_multipliers
-        self.n_resnet_blocks = n_resnet_blocks
-        self.img_channels = img_channels
-        self.z_channels = z_channels
-
 
 class Autoencoder(LightningModule):
     """
@@ -127,52 +111,19 @@ class Autoencoder(LightningModule):
         opt_ae, opt_disc = self.optimizers()
 
         # train encoder + decoder + logvar
-        aeloss, log_dict_ae = self.loss(
-            inputs,
-            reconstructions,
-            posterior,
-            0,
-            self.global_step,
-            last_layer=self.get_last_layer(),
-            split="train",
-        )
-        self.log(
-            "aeloss",
-            aeloss,
-            prog_bar=True,
-            logger=True,
-            on_step=True,
-            on_epoch=True,
-        )
-        self.log_dict(
-            log_dict_ae, prog_bar=False, logger=True, on_step=True, on_epoch=False
-        )
+        aeloss, log_dict_ae = self.loss(inputs, reconstructions, posterior, 0, self.global_step, last_layer=self.get_last_layer(), split="train")
+        self.log("aeloss", aeloss, prog_bar=True, logger=True, on_step=True, on_epoch=True)
+        self.log_dict(log_dict_ae, prog_bar=False, logger=True, on_step=True, on_epoch=False)
+        
         opt_ae.zero_grad()
         self.manual_backward(aeloss)
         opt_ae.step()
 
         # train the discriminator
-        discloss, log_dict_disc = self.loss(
-            inputs,
-            reconstructions,
-            posterior,
-            1,
-            self.global_step,
-            last_layer=self.get_last_layer(),
-            split="train",
-        )
-
-        self.log(
-            "discloss",
-            discloss,
-            prog_bar=True,
-            logger=True,
-            on_step=True,
-            on_epoch=True,
-        )
-        self.log_dict(
-            log_dict_disc, prog_bar=False, logger=True, on_step=True, on_epoch=False
-        )
+        discloss, log_dict_disc = self.loss(inputs, reconstructions, posterior, 1, self.global_step, last_layer=self.get_last_layer(), split="train")
+        self.log("discloss", discloss, prog_bar=True, logger=True, on_step=True, on_epoch=True)
+        self.log_dict(log_dict_disc, prog_bar=False, logger=True, on_step=True, on_epoch=False)
+        
         opt_disc.zero_grad()
         self.manual_backward(discloss)
         opt_disc.step()

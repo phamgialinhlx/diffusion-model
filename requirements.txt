@@ -1,8 +1,8 @@
 # --------- pytorch --------- #
-torch>=2.0.0
-torchvision>=0.15.0
-lightning>=2.0.0
-torchmetrics>=0.11.4
+torch==2.0.1 # >=2.0.0
+torchvision==0.15.2 # >=0.15.0
+lightning==2.0.6 # >=2.0.0
+torchmetrics==1.0.3 # >=0.11.4
 
 # --------- hydra --------- #
 hydra-core==1.3.2
@@ -10,15 +10,17 @@ hydra-colorlog==1.2.0
 hydra-optuna-sweeper==1.2.0
 
 # --------- loggers --------- #
-# wandb
+wandb==0.15.8
 # neptune-client
 # mlflow
 # comet-ml
 # aim>=3.16.2  # no lower than 3.16.2, see https://github.com/aimhubio/aim/issues/2550
 
 # --------- others --------- #
-pyrootutils     # standardizing the project root setup
-pre-commit      # hooks for applying linters on commit
-rich            # beautiful text formatting in terminal
-pytest          # tests
+pyrootutils==1.0.4     # standardizing the project root setup
+pre-commit==3.3.3      # hooks for applying linters on commit
+rich==13.5.2           # beautiful text formatting in terminal
+pytest==7.4.0          # tests
+lpips==0.1.4
+ipython==8.12.2        # for debugging
 # sh            # for running bash commands in some tests (linux/macos only)

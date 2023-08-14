@@ -3,7 +3,7 @@ data_dir: ${paths.data_dir}
 batch_size: 128
 image_size: 32
 image_channels: 1
-num_workers: 0
+num_workers: 12
 
 transform:
   _target_: torchvision.transforms.Compose

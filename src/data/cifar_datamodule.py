@@ -11,6 +11,7 @@ class CIFARDataModule(LightningDataModule):
     def __init__(
         self,
         data_dir: str = "data/",
+        image_channels: int = 3,
         image_size: int = 32,
         batch_size: int = 64,
         num_workers: int = 0,
@@ -54,14 +55,14 @@ class CIFARDataModule(LightningDataModule):
 
     def prepare_data(self):
         """Download data if needed."""
-        CIFAR10(root="./data", train=True, download=True, transform=self.transforms)
-        CIFAR10(root="./data", train=False, download=True, transform=self.transforms)
+        CIFAR10(root=self.hparams.data_dir, train=True, download=True, transform=self.transforms)
+        CIFAR10(root=self.hparams.data_dir, train=False, download=True, transform=self.transforms)
 
     def setup(self, stage: Optional[str] = None):
         # load and split datasets only if not loaded already
         if not self.data_train and not self.data_val:
-            self.data_train = CIFAR10(root='./data', train=True, transform=self.transforms)
-            self.data_val = CIFAR10(root='./data', train=False, transform=self.transforms)
+            self.data_train = CIFAR10(root=self.hparams.data_dir, train=True, transform=self.transforms)
+            self.data_val = CIFAR10(root=self.hparams.data_dir, train=False, transform=self.transforms)
 
     def train_dataloader(self):
         return DataLoader(
@@ -81,23 +82,10 @@ class CIFARDataModule(LightningDataModule):
             shuffle=False,
         )
 
-    def teardown(self, stage: Optional[str] = None):
-        """Clean up after fit or test."""
-        pass
-
-    def state_dict(self):
-        """Extra things to save to checkpoint."""
-        return {}
-
-    def load_state_dict(self, state_dict: Dict[str, Any]):
-        """Things to do when loading checkpoint."""
-        pass
-
-
 if __name__ == "__main__":
     _ = CIFARDataModule()
-    # print(_.prepare_data())
     _.setup()
     images, labels = next(iter(_.train_dataloader()))
     print(images.shape)
     print(labels.shape)
+    print(images.min(), images.max())

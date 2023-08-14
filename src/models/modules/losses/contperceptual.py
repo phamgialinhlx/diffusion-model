@@ -148,7 +148,6 @@ class LPIPSWithDiscriminator(nn.Module):
                 logits_fake = self.discriminator(
                     torch.cat((reconstructions.contiguous().detach(), cond), dim=1)
                 )
-
             disc_factor = adopt_weight(
                 self.disc_factor, global_step, threshold=self.discriminator_iter_start
             )
