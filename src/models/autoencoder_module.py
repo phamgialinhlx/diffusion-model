@@ -4,6 +4,7 @@ from torch import nn
 import torch
 from torchmetrics import MaxMetric, MeanMetric
 from lightning import LightningModule
+from torchmetrics.image import StructuralSimilarityIndexMeasure, PeakSignalNoiseRatio
 import hydra
 from omegaconf import DictConfig
 
@@ -64,6 +65,8 @@ class Autoencoder(LightningModule):
         # self.init_from_ckpt(ckpt_path, ignore_keys=ignore_keys)
 
         self.save_hyperparameters(logger=False, ignore=["loss"])
+        self.ssim = StructuralSimilarityIndexMeasure(data_range=(-1.0, 1.0))
+        self.psnr = PeakSignalNoiseRatio(data_range=(-1.0, 1.0))
 
     def forward(self, input, sample_posterior=True):
         posterior = self.encode(input)
@@ -128,6 +131,11 @@ class Autoencoder(LightningModule):
         self.manual_backward(discloss)
         opt_disc.step()
 
+        self.ssim.update(reconstructions, inputs)
+        self.psnr.update(reconstructions, inputs)
+        self.log("train/ssim", self.ssim.compute(), on_step=False, on_epoch=True, prog_bar=False)
+        self.log("train/psnr", self.psnr.compute(), on_step=False, on_epoch=True, prog_bar=False)
+
     def validation_step(self, batch, batch_idx):
         inputs = self.get_input(batch, self.image_key)
         reconstructions, posterior = self(inputs)
@@ -151,6 +159,10 @@ class Autoencoder(LightningModule):
             split="val",
         )
 
+        self.ssim.update(reconstructions, inputs)
+        self.psnr.update(reconstructions, inputs)
+        self.log("val/ssim", self.ssim.compute(), on_step=False, on_epoch=True, prog_bar=False)
+        self.log("val/psnr", self.psnr.compute(), on_step=False, on_epoch=True, prog_bar=False)
         self.log("val/rec_loss", log_dict_ae["val/rec_loss"])
         self.log_dict(log_dict_ae)
         self.log_dict(log_dict_disc)
@@ -184,6 +196,7 @@ def main(cfg: DictConfig) -> Optional[float]:
     IMG_CHANNELS = 1
     cfg.model.autoencoderconfig.channels = IMG_SIZE
     cfg.model.autoencoderconfig.img_channels = IMG_CHANNELS
+    cfg.model.autoencoderconfig.channel_multipliers = [1, 1, 2]
     model: LightningModule = hydra.utils.instantiate(cfg.model)
     input = torch.randn(2, IMG_CHANNELS, IMG_SIZE, IMG_SIZE)
     output = model(input)

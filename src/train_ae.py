@@ -90,7 +90,7 @@ def train(cfg: DictConfig) -> Tuple[dict, dict]:
 
     train_metrics = trainer.callback_metrics
 
-    return train_metrics
+    return train_metrics, object_dict
 
 
 @hydra.main(version_base="1.3", config_path="../configs", config_name="train_ae.yaml")
@@ -100,7 +100,7 @@ def main(cfg: DictConfig) -> Optional[float]:
     utils.extras(cfg)
 
     # train the model
-    metric_dict = train(cfg)
+    metric_dict, _ = train(cfg)
 
     # safely retrieve metric value for hydra-based hyperparameter optimization
     metric_value = utils.get_metric_value(

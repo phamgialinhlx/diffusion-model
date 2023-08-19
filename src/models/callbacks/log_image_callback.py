@@ -9,13 +9,6 @@ class LogImageCallback(Callback):
     def __init__(self):
         super().__init__()
 
-    def normalize(self, x):
-        # x = 2.*(x-x.min())/(x.max()-x.min()) - 1.
-        mean = 0.5 # x.mean()
-        std = 0.5 # x.std()
-        x = (x - mean) / std
-        return x
-
     @torch.no_grad()
     def on_validation_epoch_end(self, trainer: "pl.Trainer", pl_module: "pl.LightningModule") -> None:
         # Log image
@@ -27,11 +20,10 @@ class LogImageCallback(Callback):
         image = pl_module.forward(origin)[0]
         if image.shape[0] == 256:
             nrows = 16
-        # image = self.normalize(image)
-        # origin = self.normalize(origin)
 
-        origin = make_grid(origin, nrow=nrows, normalize=False)
-        image = make_grid(image, nrow=nrows, normalize=False)
-        
+        compare = make_grid(torch.cat([origin, image], dim=3)
+                           , nrow = 16, normalize=True, value_range=(-1, 1))
+        origin = make_grid(origin, nrow=nrows, normalize=True, value_range=(-1, 1))
+        image = make_grid(image, nrow=nrows, normalize=True, value_range=(-1, 1))
 
-        trainer.logger.experiment.log({"image": [wandb.Image(origin), wandb.Image(image)], "caption": ["origin", "reconstruct"]})
+        trainer.logger.experiment.log({"image": [wandb.Image(origin), wandb.Image(image), wandb.Image(compare)], "caption": ["origin", "reconstruct", "compare"]})
