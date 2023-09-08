@@ -55,14 +55,28 @@ class CIFARDataModule(LightningDataModule):
 
     def prepare_data(self):
         """Download data if needed."""
-        CIFAR10(root=self.hparams.data_dir, train=True, download=True, transform=self.transforms)
-        CIFAR10(root=self.hparams.data_dir, train=False, download=True, transform=self.transforms)
+        CIFAR10(
+            root=self.hparams.data_dir,
+            train=True,
+            download=True,
+            transform=self.transforms,
+        )
+        CIFAR10(
+            root=self.hparams.data_dir,
+            train=False,
+            download=True,
+            transform=self.transforms,
+        )
 
     def setup(self, stage: Optional[str] = None):
         # load and split datasets only if not loaded already
         if not self.data_train and not self.data_val:
-            self.data_train = CIFAR10(root=self.hparams.data_dir, train=True, transform=self.transforms)
-            self.data_val = CIFAR10(root=self.hparams.data_dir, train=False, transform=self.transforms)
+            self.data_train = CIFAR10(
+                root=self.hparams.data_dir, train=True, transform=self.transforms
+            )
+            self.data_val = CIFAR10(
+                root=self.hparams.data_dir, train=False, transform=self.transforms
+            )
 
     def train_dataloader(self):
         return DataLoader(
@@ -81,6 +95,7 @@ class CIFARDataModule(LightningDataModule):
             pin_memory=self.hparams.pin_memory,
             shuffle=False,
         )
+
 
 if __name__ == "__main__":
     _ = CIFARDataModule()

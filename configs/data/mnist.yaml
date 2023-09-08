@@ -15,6 +15,6 @@ transform:
       padding: 2
       fill: 0
     - _target_: torchvision.transforms.ToTensor
-    - _target_: torchvision.transforms.Normalize
-      mean: [0.0,]
-      std: [1.0,]
+    # - _target_: torchvision.transforms.Normalize
+    #   mean: [0.0,]
+    #   std: [1.0,]

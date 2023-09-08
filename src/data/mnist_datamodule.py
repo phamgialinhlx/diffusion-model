@@ -9,12 +9,11 @@ from torchvision.transforms import transforms
 
 
 class MNISTDataModule(LightningDataModule):
-
     def __init__(
         self,
         data_dir: str = "data/",
         image_channels: int = 1,
-        image_size: int = 28, 
+        image_size: int = 28,
         batch_size: int = 128,
         num_workers: int = 0,
         transform: Tensor = None,
@@ -27,7 +26,7 @@ class MNISTDataModule(LightningDataModule):
         self.transforms = transform
         self.data_train = None
         self.data_val = None
-        
+
     def prepare_data(self):
         """Download data if needed.
 
@@ -43,8 +42,12 @@ class MNISTDataModule(LightningDataModule):
         careful not to execute things like random split twice!
         """
         if not self.data_train and not self.data_val:
-            self.data_train = MNIST(self.hparams.data_dir, train=True, transform=self.transforms)
-            self.data_val = MNIST(self.hparams.data_dir, train=False, transform=self.transforms)
+            self.data_train = MNIST(
+                self.hparams.data_dir, train=True, transform=self.transforms
+            )
+            self.data_val = MNIST(
+                self.hparams.data_dir, train=False, transform=self.transforms
+            )
 
     def train_dataloader(self):
         return DataLoader(
@@ -52,7 +55,7 @@ class MNISTDataModule(LightningDataModule):
             batch_size=self.hparams.batch_size,
             num_workers=self.hparams.num_workers,
             shuffle=True,
-            drop_last=True
+            drop_last=True,
         )
 
     def val_dataloader(self):
@@ -61,11 +64,12 @@ class MNISTDataModule(LightningDataModule):
             batch_size=self.hparams.batch_size,
             num_workers=self.hparams.num_workers,
         )
-    
+
     @property
     def num_classes(self):
         return 10
-    
+
+
 if __name__ == "__main__":
     import hydra
     import omegaconf

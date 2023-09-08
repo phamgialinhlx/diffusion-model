@@ -9,6 +9,7 @@ import hydra
 from omegaconf import DictConfig
 
 import pyrootutils
+
 pyrootutils.setup_root(__file__, indicator=".project-root", pythonpath=True)
 
 from src.models.modules.diffusionmodules import Encoder, Decoder
@@ -27,7 +28,7 @@ class Autoencoder(LightningModule):
         autoencoderconfig,
         embed_dim: int,
         loss: nn.Module,
-        image_key = 0,
+        image_key=0,
         lr: float = 4.5e-6,
         ckpt_path: str = None,
         colorize_nlabels=None,
@@ -64,7 +65,7 @@ class Autoencoder(LightningModule):
         # if ckpt_path is not None:
         # self.init_from_ckpt(ckpt_path, ignore_keys=ignore_keys)
 
-        self.save_hyperparameters(logger=False, ignore=["loss"])
+        self.save_hyperparameters(logger=False)
         self.ssim = StructuralSimilarityIndexMeasure(data_range=(-1.0, 1.0))
         self.psnr = PeakSignalNoiseRatio(data_range=(-1.0, 1.0))
 
@@ -108,33 +109,82 @@ class Autoencoder(LightningModule):
         # x = x.permute(0, 3, 1, 2).to(memory_format=torch.contiguous_format).float()
         return x
 
+    def on_train_start(self) -> None:
+        self.ssim.reset()
+        self.psnr.reset()
+
+    def on_validation_start(self) -> None:
+        self.ssim.reset()
+        self.psnr.reset()
+
     def training_step(self, batch, batch_idx):
         inputs = self.get_input(batch, self.image_key)
         reconstructions, posterior = self.forward(inputs)
         opt_ae, opt_disc = self.optimizers()
 
         # train encoder + decoder + logvar
-        aeloss, log_dict_ae = self.loss(inputs, reconstructions, posterior, 0, self.global_step, last_layer=self.get_last_layer(), split="train")
-        self.log("aeloss", aeloss, prog_bar=True, logger=True, on_step=True, on_epoch=True)
-        self.log_dict(log_dict_ae, prog_bar=False, logger=True, on_step=True, on_epoch=False)
-        
+        aeloss, log_dict_ae = self.loss(
+            inputs,
+            reconstructions,
+            posterior,
+            0,
+            self.global_step,
+            last_layer=self.get_last_layer(),
+            split="train",
+        )
+        self.log(
+            "aeloss", aeloss, prog_bar=True, logger=True, on_step=True, on_epoch=True
+        )
+        self.log_dict(
+            log_dict_ae, prog_bar=False, logger=True, on_step=True, on_epoch=False
+        )
+
         opt_ae.zero_grad()
         self.manual_backward(aeloss)
         opt_ae.step()
 
         # train the discriminator
-        discloss, log_dict_disc = self.loss(inputs, reconstructions, posterior, 1, self.global_step, last_layer=self.get_last_layer(), split="train")
-        self.log("discloss", discloss, prog_bar=True, logger=True, on_step=True, on_epoch=True)
-        self.log_dict(log_dict_disc, prog_bar=False, logger=True, on_step=True, on_epoch=False)
-        
+        discloss, log_dict_disc = self.loss(
+            inputs,
+            reconstructions,
+            posterior,
+            1,
+            self.global_step,
+            last_layer=self.get_last_layer(),
+            split="train",
+        )
+        self.log(
+            "discloss",
+            discloss,
+            prog_bar=True,
+            logger=True,
+            on_step=True,
+            on_epoch=True,
+        )
+        self.log_dict(
+            log_dict_disc, prog_bar=False, logger=True, on_step=True, on_epoch=False
+        )
+
         opt_disc.zero_grad()
         self.manual_backward(discloss)
         opt_disc.step()
 
         self.ssim.update(reconstructions, inputs)
         self.psnr.update(reconstructions, inputs)
-        self.log("train/ssim", self.ssim.compute(), on_step=False, on_epoch=True, prog_bar=False)
-        self.log("train/psnr", self.psnr.compute(), on_step=False, on_epoch=True, prog_bar=False)
+        self.log(
+            "train/ssim",
+            self.ssim.compute(),
+            on_step=False,
+            on_epoch=True,
+            prog_bar=False,
+        )
+        self.log(
+            "train/psnr",
+            self.psnr.compute(),
+            on_step=False,
+            on_epoch=True,
+            prog_bar=False,
+        )
 
     def validation_step(self, batch, batch_idx):
         inputs = self.get_input(batch, self.image_key)
@@ -161,8 +211,20 @@ class Autoencoder(LightningModule):
 
         self.ssim.update(reconstructions, inputs)
         self.psnr.update(reconstructions, inputs)
-        self.log("val/ssim", self.ssim.compute(), on_step=False, on_epoch=True, prog_bar=False)
-        self.log("val/psnr", self.psnr.compute(), on_step=False, on_epoch=True, prog_bar=False)
+        self.log(
+            "val/ssim",
+            self.ssim.compute(),
+            on_step=False,
+            on_epoch=True,
+            prog_bar=False,
+        )
+        self.log(
+            "val/psnr",
+            self.psnr.compute(),
+            on_step=False,
+            on_epoch=True,
+            prog_bar=False,
+        )
         self.log("val/rec_loss", log_dict_ae["val/rec_loss"])
         self.log_dict(log_dict_ae)
         self.log_dict(log_dict_disc)
@@ -187,19 +249,25 @@ class Autoencoder(LightningModule):
         return self.decoder.conv_out.weight
 
 
+    @torch.no_grad()
+    def log_image(self, images):
+        dec, posterior = self.forward(images)
+        return dec
+        
 @hydra.main(
     version_base="1.3", config_path="../../configs", config_name="train_ae.yaml"
 )
 def main(cfg: DictConfig) -> Optional[float]:
     print(f"Instantiating model <{cfg.model._target_}>")
-    IMG_SIZE = 32
-    IMG_CHANNELS = 1
+    IMG_SIZE = 128
+    IMG_CHANNELS = 3
     cfg.model.autoencoderconfig.channels = IMG_SIZE
     cfg.model.autoencoderconfig.img_channels = IMG_CHANNELS
-    cfg.model.autoencoderconfig.channel_multipliers = [1, 1, 2]
+    cfg.model.autoencoderconfig.channel_multipliers = [1, 1, 2, 2, 4]
     model: LightningModule = hydra.utils.instantiate(cfg.model)
     input = torch.randn(2, IMG_CHANNELS, IMG_SIZE, IMG_SIZE)
     output = model(input)
+    print(sum(p.numel() for p in model.parameters()))
     print(output[0].shape)
     print(output[1].sample().shape)
 

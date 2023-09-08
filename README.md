@@ -1295,3 +1295,20 @@ You can override any parameter from command line like this
 ```bash
 python src/train.py trainer.max_epochs=20 data.batch_size=64
 ```
+
+
+Train autoencoder on CIFAR
+```bash
+python src/train_ae.py trainer=gpu data=cifar data.batch_size=256 model.autoencoderconfig.channel_multipliers="[1, 1, 2]"
+python src/train_ae.py trainer=gpu data=cifar data.batch_size=256 model/autoencoderconfig=autoencoder_kl_16x16x16.yaml model.autoencoderconfig.channel_multipliers="[1, 2]"
+```
+Inference autoencoder on CIFAR
+```bash
+python src/inference_ae.py data=cifar.yaml data.batch_size=256 ckpt_path="/work/hpc/pgl/lung-diffusion/outputs/2023-08-17_02-31-00/checkpoints/last.ckpt" 
+python src/inference_ae.py data=cifar.yaml data.batch_size=256 model/autoencoderconfig=autoencoder_kl_16x16x16.yaml ckpt_path="/work/hpc/pgl/lung-diffusion/outputs/2023-08-29_09-58-11/checkpoints/last.ckpt" task_name="inference"
+```
+
+Train latent diffusion on CIFAR
+```bash
+python src/train_diffusion.py data=cifar trainer=gpu data.batch_size=256 model/autoencoderconfig=autoencoder_kl_16x16x16.yaml model.autoencoder_ckpt_path="/work/hpc/pgl/lung-diffusion/outputs/2023-08-29_09-58-11/checkpoints/last.ckpt"
+```

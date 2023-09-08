@@ -168,7 +168,8 @@ class Encoder(nn.Module):
         channel_multipliers: List[int],
         n_resnet_blocks: int,
         img_channels: int,
-        z_channels: int
+        z_channels: int,
+        **kwargs,
     ):
         """
         :param channels: is the number of channels in the first convolution layer
@@ -264,7 +265,8 @@ class Decoder(nn.Module):
         channel_multipliers: List[int],
         n_resnet_blocks: int,
         img_channels: int,
-        z_channels: int
+        z_channels: int,
+        **kwargs
     ):
         """
         :param channels: is the number of channels in the final convolution layer
