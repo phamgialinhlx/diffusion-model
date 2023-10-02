@@ -20,14 +20,15 @@ from src import utils
 
 def custom_to_pil(x):
     x = x.detach().cpu()
-    x = torch.clamp(x, -1., 1.)
-    x = (x + 1.) / 2.
+    x = torch.clamp(x, -1.0, 1.0)
+    x = (x + 1.0) / 2.0
     x = x.permute(1, 2, 0).numpy()
     x = (255 * x).astype(np.uint8)
     x = Image.fromarray(x)
     if not x.mode == "RGB":
         x = x.convert("RGB")
     return x
+
 
 def interpolate(latent_matrix_A, latent_matrix_B, num_steps=5):
     # Perform linear interpolation between A and B
@@ -58,7 +59,9 @@ def interpolate_process(model, image_A, image_B, num_steps=5):
     save_image(interpolated_images, "interpolated.png")
 
 
-@hydra.main(version_base="1.3", config_path="../configs", config_name="train_diffusion.yaml")
+@hydra.main(
+    version_base="1.3", config_path="../configs", config_name="train_diffusion.yaml"
+)
 def main(cfg: DictConfig):
     inference(cfg)
 
@@ -75,16 +78,17 @@ def inference(cfg: DictConfig):
     print(f"Instantiating model <{cfg.model._target_}>")
     model: LightningModule = hydra.utils.instantiate(cfg.model)
     assert cfg.ckpt_path is not None
-    model = model.load_from_checkpoint(cfg.ckpt_path, autoencoder=model.autoencoder).to("cuda")
+    model = model.load_from_checkpoint(cfg.ckpt_path, autoencoder=model.autoencoder).to(
+        "cuda"
+    )
     autoencoder = model.autoencoder
     autoencoder = autoencoder.load_from_checkpoint(
         cfg.model.autoencoder_ckpt_path,
-        loss = autoencoder.loss,
+        loss=autoencoder.loss,
     ).to("cuda")
 
     images, labels = next(iter(datamodule.val_dataloader()))
     images = images.to("cuda")
-
 
     x = model.autoencoder_encode(images)
 
@@ -99,11 +103,10 @@ def inference(cfg: DictConfig):
         pre_scale = 1 / math.sqrt(model.alpha(t))
         e_scale = (1 - model.alpha(t)) / math.sqrt(1 - model.alpha_bar(t))
         post_sigma = math.sqrt(model.beta(t)) * z
-        x = pre_scale * (x - e_scale * e_hat) + post_sigma   
-    
+        x = pre_scale * (x - e_scale * e_hat) + post_sigma
+
     # from IPython import embed; embed()
     out_images = model.autoencoder.decode(x)
-    
 
     out_images = make_grid(
         torch.cat([images, out_images], dim=3),

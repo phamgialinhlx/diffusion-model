@@ -9,7 +9,8 @@ from torchvision import transforms
 from lightning import LightningDataModule
 from torch import Tensor
 
-IMAGE_EXTENSIONS = ['.jpg', '.jpeg', '.png', '.gif', '.bmp', '.webp']
+IMAGE_EXTENSIONS = [".jpg", ".jpeg", ".png", ".gif", ".bmp", ".webp"]
+
 
 def list_imgs(directory_path):
     # Initialize an empty list to store image file paths
@@ -24,12 +25,7 @@ def list_imgs(directory_path):
 
 
 class LSUNBase(Dataset):
-    def __init__(self,
-                 data_root,
-                 size=None,
-                 interpolation="bicubic",
-                 flip_p=0.5
-                 ):
+    def __init__(self, data_root, size=None, interpolation="bicubic", flip_p=0.5):
         self.data_root = data_root
         self.image_paths = list_imgs(data_root)
         self._length = len(self.image_paths)
@@ -54,9 +50,14 @@ class LSUNBase(Dataset):
         # default to score-sde preprocessing
         img = np.array(image).astype(np.uint8)
         crop = min(img.shape[0], img.shape[1])
-        h, w, = img.shape[0], img.shape[1]
-        img = img[(h - crop) // 2:(h + crop) // 2,
-              (w - crop) // 2:(w + crop) // 2]
+        (
+            h,
+            w,
+        ) = (
+            img.shape[0],
+            img.shape[1],
+        )
+        img = img[(h - crop) // 2 : (h + crop) // 2, (w - crop) // 2 : (w + crop) // 2]
 
         image = Image.fromarray(img)
         if self.size is not None:
@@ -66,7 +67,8 @@ class LSUNBase(Dataset):
         image = np.array(image).astype(np.uint8)
         image = (image / 127.5 - 1.0).astype(np.float32)
         return [image.reshape(3, crop, crop)]
-    
+
+
 class LSUNBedroomsTrain(LSUNBase):
     def __init__(self, **kwargs):
         super().__init__(data_root="data/lsun/bedroom_train", **kwargs)
@@ -75,6 +77,7 @@ class LSUNBedroomsTrain(LSUNBase):
 class LSUNBedroomsValidation(LSUNBase):
     def __init__(self, flip_p=0.0, **kwargs):
         super().__init__(data_root="data/lsun/bedroom_val", flip_p=flip_p, **kwargs)
+
 
 class LSUNBedroomDataModule(LightningDataModule):
     def __init__(
@@ -95,8 +98,8 @@ class LSUNBedroomDataModule(LightningDataModule):
         if not self.data_train or not self.data_val:
             self.data_train = LSUNBedroomsTrain()
             self.data_val = LSUNBedroomsValidation()
-    
-    def train_dataloader(self): 
+
+    def train_dataloader(self):
         return DataLoader(
             dataset=self.data_train,
             batch_size=self.hparams.batch_size,
@@ -111,6 +114,7 @@ class LSUNBedroomDataModule(LightningDataModule):
             batch_size=self.hparams.batch_size,
             num_workers=self.hparams.num_workers,
         )
+
 
 if __name__ == "__main__":
     import hydra

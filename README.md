@@ -1301,6 +1301,7 @@ Train autoencoder on CIFAR
 ```bash
 python src/train_ae.py trainer=gpu data=cifar data.batch_size=256 model.autoencoderconfig.channel_multipliers="[1, 1, 2]"
 python src/train_ae.py trainer=gpu data=cifar data.batch_size=256 model/autoencoderconfig=autoencoder_kl_16x16x16.yaml model.autoencoderconfig.channel_multipliers="[1, 2]"
+python src/train_ae.py trainer=gpu data=cifar data.batch_size=256 model/autoencoderconfig=autoencoder_kl_4x32x32.yaml model.autoencoderconfig.channel_multipliers="[1, 2, 4]"
 ```
 Inference autoencoder on CIFAR
 ```bash

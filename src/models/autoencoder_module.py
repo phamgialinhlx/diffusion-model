@@ -248,22 +248,21 @@ class Autoencoder(LightningModule):
     def get_last_layer(self):
         return self.decoder.conv_out.weight
 
-
     @torch.no_grad()
     def log_image(self, images):
         dec, posterior = self.forward(images)
         return dec
-        
+
 @hydra.main(
     version_base="1.3", config_path="../../configs", config_name="train_ae.yaml"
 )
 def main(cfg: DictConfig) -> Optional[float]:
     print(f"Instantiating model <{cfg.model._target_}>")
-    IMG_SIZE = 128
-    IMG_CHANNELS = 3
+    IMG_SIZE = 32
+    IMG_CHANNELS = 4
     cfg.model.autoencoderconfig.channels = IMG_SIZE
     cfg.model.autoencoderconfig.img_channels = IMG_CHANNELS
-    cfg.model.autoencoderconfig.channel_multipliers = [1, 1, 2, 2, 4]
+    cfg.model.autoencoderconfig.channel_multipliers = [1, 2, 4]
     model: LightningModule = hydra.utils.instantiate(cfg.model)
     input = torch.randn(2, IMG_CHANNELS, IMG_SIZE, IMG_SIZE)
     output = model(input)

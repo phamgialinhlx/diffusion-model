@@ -1,10 +1,12 @@
 import pyrootutils
+
 pyrootutils.setup_root(__file__, indicator=".project-root", pythonpath=True)
 
 from torch.nn import functional as F
 from torch import nn
 import torch
 import math
+
 
 class DoubleConv(nn.Module):
     def __init__(self, in_channels, out_channels, mid_channels=None, residual=False):
@@ -26,6 +28,7 @@ class DoubleConv(nn.Module):
         else:
             return self.double_conv(x)
 
+
 class Down(nn.Module):
     def __init__(self, in_channels, out_channels):
         super().__init__()
@@ -38,6 +41,7 @@ class Down(nn.Module):
     def forward(self, x):
         return self.maxpool_conv(x)
 
+
 class Up(nn.Module):
     """
     Upscaling then double conv.
@@ -48,11 +52,9 @@ class Up(nn.Module):
 
         # if bilinear, use the normal convolutions to reduce the number of channels
         if bilinear:
-            self.up = nn.Upsample(
-                scale_factor=2, mode="bilinear", align_corners=True)
+            self.up = nn.Upsample(scale_factor=2, mode="bilinear", align_corners=True)
             self.conv = DoubleConv(in_channels, in_channels, residual=True)
-            self.conv2 = DoubleConv(
-                in_channels, out_channels, in_channels // 2)
+            self.conv2 = DoubleConv(in_channels, out_channels, in_channels // 2)
         else:
             self.up = nn.ConvTranspose2d(
                 in_channels, in_channels // 2, kernel_size=2, stride=2
@@ -68,12 +70,15 @@ class Up(nn.Module):
         diff_y = input2.size()[2] - input1.size()[2]
         diff_x = input2.size()[3] - input1.size()[3]
 
-        input1 = F.pad(input1, [diff_x // 2, diff_x -
-                       diff_x // 2, diff_y // 2, diff_y - diff_y // 2])
+        input1 = F.pad(
+            input1,
+            [diff_x // 2, diff_x - diff_x // 2, diff_y // 2, diff_y - diff_y // 2],
+        )
         output = torch.cat([input2, input1], dim=1)
         output = self.conv(output)
         output = self.conv2(output)
         return output
+
 
 class SelfAttention(nn.Module):
     def __init__(self, h_size):
@@ -109,6 +114,7 @@ class SAWrapper(nn.Module):
         x = x.swapaxes(2, 1).view(-1, self.h_size, self.num_s, self.num_s)
         return x
 
+
 class OutConv(nn.Module):
     def __init__(self, in_channels, out_channels):
         super(OutConv, self).__init__()
@@ -117,15 +123,15 @@ class OutConv(nn.Module):
     def forward(self, x):
         return self.conv(x)
 
+
 class UNetModel(nn.Module):
     def __init__(
-            self, 
-            in_size: int, 
-            t_range:int, 
-            img_channels: int = 1,
-            bilinear: bool = True,
-            ):
-        
+        self,
+        in_size: int,
+        t_range: int,
+        img_channels: int = 1,
+        bilinear: bool = True,
+    ):
         super().__init__()
 
         self.inc = DoubleConv(img_channels, 64)
@@ -140,11 +146,10 @@ class UNetModel(nn.Module):
         self.sa1 = SAWrapper(256, 8)
         self.sa2 = SAWrapper(256, 4)
         self.sa3 = SAWrapper(128, 8)
-    
+
     def pos_encoding(self, t, channels, embed_size, device="cpu"):
         inv_freq = 1.0 / (
-            10000
-            ** (torch.arange(0, channels, 2, device=device).float() / channels)
+            10000 ** (torch.arange(0, channels, 2, device=device).float() / channels)
         )
         pos_enc_a = torch.sin(t.repeat(1, channels // 2) * inv_freq)
         pos_enc_b = torch.cos(t.repeat(1, channels // 2) * inv_freq)
@@ -169,9 +174,9 @@ class UNetModel(nn.Module):
         output = self.outc(x)
         return output
 
+
 if __name__ == "__main__":
     net = UNetModel(32, 100)
     img = torch.randn(30, 1, 32, 32)
     t = torch.randint(0, 100, [1])
     print(net(img, t).shape)
-    

@@ -1,0 +1,20 @@
+_target_: src.models.vqmodel_module.VQModel
+
+loss: 
+  _target_: src.models.modules.losses.vqperceptual.VQLPIPSWithDiscriminator
+  disc_start: 1
+  codebook_weight: 1.0
+  disc_num_layers: 2
+  disc_in_channels: 3
+  disc_weight: 0.6
+  disc_conditional: false
+  n_classes: ${data.n_classes}
+defaults:
+  - autoencoderconfig: autoencoder_vq_16x16x16.yaml
+
+embed_dim: ${model.autoencoderconfig.z_channels}
+n_embed: 16384
+# lr: 4.5e-6
+lr: 5.0e-5
+remap: !!null
+use_ema: True

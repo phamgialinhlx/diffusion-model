@@ -7,7 +7,7 @@ from torchvision.transforms import transforms
 
 
 class LogImageCallback(Callback):
-    def __init__(self, frequency:int = 1):
+    def __init__(self, frequency: int = 1):
         super().__init__()
         self.count = 0
         self.frequency = frequency
@@ -22,7 +22,7 @@ class LogImageCallback(Callback):
             origin = next(iter(trainer.val_dataloaders))[0].to(pl_module.device)
 
             image = pl_module.log_image(origin)
-            
+
             if image.shape[0] == 2 or image.shape[0] == 1:
                 nrows = 1
 
@@ -32,9 +32,12 @@ class LogImageCallback(Callback):
             if image.shape[0] == 16:
                 nrows = 4
             
+            if image.shape[0] == 32:
+                nrows = 8
+
             if image.shape[0] == 256:
                 nrows = 16
-            
+
             value_range = (-1, 1) if image.shape[1] != 1 else (0, 1)
             compare = make_grid(
                 torch.cat([origin, image], dim=3),
@@ -43,8 +46,12 @@ class LogImageCallback(Callback):
                 value_range=value_range,
             )
 
-            origin = make_grid(origin, nrow=nrows, normalize=True, value_range=value_range)
-            image = make_grid(image, nrow=nrows, normalize=True, value_range=value_range)
+            origin = make_grid(
+                origin, nrow=nrows, normalize=True, value_range=value_range
+            )
+            image = make_grid(
+                image, nrow=nrows, normalize=True, value_range=value_range
+            )
 
             trainer.logger.experiment.log(
                 {

@@ -1,0 +1,35 @@
+# @package _global_
+
+# to execute this experiment run:
+# python train.py experiment=example
+
+defaults:
+  - override /data: cifar.yaml
+  - override /model: autoencoder.yaml
+  - override /callbacks: ae_callbacks.yaml
+  - override /trainer: gpu.yaml
+
+# all parameters below will be merged with parameters from default configurations set above
+# this allows you to overwrite only specified parameters
+
+tags: ["cifar", "klmodel"]
+
+data:
+  num_workers: 48
+
+model:
+  autoencoderconfig: 
+    channels: ${data.image_size}
+    channel_multipliers: [1, 2]
+    attn_resolutions: []
+    resolution: ${data.image_size}
+    n_resnet_blocks: 2
+    img_channels: ${data.image_channels}
+    z_channels: 3
+
+    out_img_size: 64
+    out_channels: 3
+
+callbacks:
+  log_image:
+    frequency: 1

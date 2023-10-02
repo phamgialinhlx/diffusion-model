@@ -85,6 +85,7 @@ def train(cfg: DictConfig) -> Tuple[dict, dict]:
         model = torch.compile(model)
 
     import wandb
+
     wandb.watch(model, log="all")
 
     if cfg.get("train"):

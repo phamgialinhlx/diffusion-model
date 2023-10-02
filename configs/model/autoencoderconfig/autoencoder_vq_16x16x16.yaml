@@ -1,0 +1,11 @@
+channels: ${data.image_size}
+channel_multipliers: [1, 1, 2, 4]
+n_resnet_blocks: 2
+img_channels: ${data.image_channels}
+z_channels: 16
+double_z: False
+resolution: ${data.image_size}
+attn_resolutions:
+- 16
+out_img_size: 16
+out_channels: 16
