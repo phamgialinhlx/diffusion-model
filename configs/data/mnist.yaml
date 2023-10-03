@@ -2,6 +2,7 @@ _target_: src.data.mnist_datamodule.MNISTDataModule
 data_dir: ${paths.data_dir}
 batch_size: 128
 image_size: 32
+n_classes: 10
 image_channels: 1
 num_workers: 12
 
@@ -15,6 +16,6 @@ transform:
       padding: 2
       fill: 0
     - _target_: torchvision.transforms.ToTensor
-    - _target_: torchvision.transforms.Normalize
-      mean: [0.0,]
-      std: [1.0,]
+    # - _target_: torchvision.transforms.Normalize
+    #   mean: [0.0,]
+    #   std: [1.0,]

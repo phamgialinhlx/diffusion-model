@@ -23,4 +23,5 @@ rich==13.5.2           # beautiful text formatting in terminal
 pytest==7.4.0          # tests
 lpips==0.1.4
 ipython==8.12.2        # for debugging
+einops==0.6.1
 # sh            # for running bash commands in some tests (linux/macos only)

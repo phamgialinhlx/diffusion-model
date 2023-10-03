@@ -3,5 +3,6 @@ data_dir: ${paths.data_dir}
 batch_size: 128
 image_size: 32
 image_channels: 3
+n_classes: 10
 num_workers: 0
 pin_memory: False

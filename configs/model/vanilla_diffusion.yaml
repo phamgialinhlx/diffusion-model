@@ -1,0 +1,30 @@
+_target_: src.models.diffusion_module.DiffusionModule
+
+# loss_type: "l2"
+num_timesteps: 1000
+beta_small: 1.0e-4
+beta_large: 0.02
+
+defaults:
+  - autoencoderconfig: autoencoder_kl_64x8x8.yaml
+
+autoencoder: !!null
+
+autoencoder_ckpt_path: ""
+
+net:
+  _target_: src.models.diffusion.custom_unet.UNetModel
+  in_size: ${data.image_size}
+  img_channels: ${data.image_channels}
+  t_range: ${model.num_timesteps}
+  bilinear: True
+# net:
+#   _target_: src.models.diffusion.unet.UNetModel
+#   image_size: ${data.image_size}
+#   in_channels: ${data.image_channels}
+#   out_channels: ${data.image_channels}
+#   model_channels: 192
+#   channel_mult: [1, 2, 4]
+#   attention_resolutions: [1, 2, 4, 8]
+#   num_heads: 8
+#   num_res_blocks: 2

@@ -167,8 +167,12 @@ class Encoder(nn.Module):
         channels: int,
         channel_multipliers: List[int],
         n_resnet_blocks: int,
+        attn_resolutions,
         img_channels: int,
-        z_channels: int
+        resolution: int,
+        z_channels: int,
+        double_z: bool = True,
+        **kwargs,
     ):
         """
         :param channels: is the number of channels in the first convolution layer
@@ -179,7 +183,8 @@ class Encoder(nn.Module):
         :param z_channels: is the number of channels in the embedding space
         """
         super().__init__()
-
+        self.num_resolutions = len(channel_multipliers)
+        self.num_res_blocks = n_resnet_blocks
         # Number of blocks of different resolutions.
         # The resolution is halved at the end each top level block
         n_resolutions = len(channel_multipliers)
@@ -187,6 +192,7 @@ class Encoder(nn.Module):
         # Initial $3 \times 3$ convolution layer that maps the image to `channels`
         self.conv_in = nn.Conv2d(img_channels, channels, 3, stride=1, padding=1)
 
+        curr_res = resolution
         # Number of channels in each top level block
         channels_list = [m * channels for m in [1] + channel_multipliers]
 
@@ -197,15 +203,21 @@ class Encoder(nn.Module):
             # Each top level block consists of multiple ResNet Blocks and down-sampling
             resnet_blocks = nn.ModuleList()
             # Add ResNet Blocks
+            attn = nn.ModuleList()
+            # Add Attention Blocks
             for _ in range(n_resnet_blocks):
                 resnet_blocks.append(ResnetBlock(channels, channels_list[i + 1]))
                 channels = channels_list[i + 1]
+                if curr_res in attn_resolutions:
+                    attn.append(AttnBlock(channels))
             # Top-level block
             down = nn.Module()
             down.block = resnet_blocks
+            down.attn = attn
             # Down-sampling at the end of each top level block except the last
             if i != n_resolutions - 1:
                 down.downsample = DownSample(channels)
+                curr_res = curr_res // 2
             else:
                 down.downsample = nn.Identity()
             #
@@ -220,7 +232,7 @@ class Encoder(nn.Module):
         # Map to embedding space with a $3 \times 3$ convolution
         self.norm_out = GroupNorm(channels)
         self.swish = Swish()
-        self.conv_out = nn.Conv2d(channels, 2 * z_channels, 3, stride=1, padding=1)
+        self.conv_out = nn.Conv2d(channels, 2 * z_channels if double_z else z_channels, 3, stride=1, padding=1)
 
     def forward(self, img: torch.Tensor):
         """
@@ -230,13 +242,18 @@ class Encoder(nn.Module):
         # Map to `channels` with the initial convolution
         x = self.conv_in(img)
 
-        # Top-level blocks
-        for down in self.down:
-            # ResNet Blocks
-            for block in down.block:
-                x = block(x)
-            # Down-sampling
-            x = down.downsample(x)
+        hs = [x]
+        for i_level in range(self.num_resolutions):
+            for i_block in range(self.num_res_blocks):
+                h = self.down[i_level].block[i_block](hs[-1])
+                if len(self.down[i_level].attn) > 0:
+                    h = self.down[i_level].attn[i_block](h)
+                hs.append(h)
+            if i_level != self.num_resolutions-1:
+                hs.append(self.down[i_level].downsample(hs[-1]))
+
+        # middle
+        x = hs[-1]
 
         # Final ResNet blocks with attention
         x = self.mid.block_1(x)
@@ -264,7 +281,10 @@ class Decoder(nn.Module):
         channel_multipliers: List[int],
         n_resnet_blocks: int,
         img_channels: int,
-        z_channels: int
+        attn_resolutions,
+        z_channels: int,
+        resolution: int,
+        **kwargs,
     ):
         """
         :param channels: is the number of channels in the final convolution layer
@@ -276,15 +296,18 @@ class Decoder(nn.Module):
         """
         super().__init__()
 
+        self.num_resolutions = len(channel_multipliers)
+        self.num_res_blocks = n_resnet_blocks
+        
         # Number of blocks of different resolutions.
         # The resolution is halved at the end each top level block
         num_resolutions = len(channel_multipliers)
-
         # Number of channels in each top level block, in the reverse order
         channels_list = [m * channels for m in channel_multipliers]
 
         # Number of channels in the  top-level block
         channels = channels_list[-1]
+        curr_res = resolution // 2**(self.num_resolutions-1)
 
         # Initial $3 \times 3$ convolution layer that maps the embedding space to `channels`
         self.conv_in = nn.Conv2d(z_channels, channels, 3, stride=1, padding=1)
@@ -302,15 +325,21 @@ class Decoder(nn.Module):
             # Each top level block consists of multiple ResNet Blocks and up-sampling
             resnet_blocks = nn.ModuleList()
             # Add ResNet Blocks
+            attn = nn.ModuleList()
+            # Add Attention Blocks
             for _ in range(n_resnet_blocks + 1):
                 resnet_blocks.append(ResnetBlock(channels, channels_list[i]))
                 channels = channels_list[i]
+                if curr_res in attn_resolutions:
+                    attn.append(AttnBlock(channels))
             # Top-level block
             up = nn.Module()
             up.block = resnet_blocks
+            up.attn = attn
             # Up-sampling at the end of each top level block except the first
             if i != 0:
                 up.upsample = UpSample(channels)
+                curr_res = curr_res * 2
             else:
                 up.upsample = nn.Identity()
             # Prepend to be consistent with the checkpoint
@@ -337,12 +366,13 @@ class Decoder(nn.Module):
         h = self.mid.block_2(h)
 
         # Top-level blocks
-        for up in reversed(self.up):
-            # ResNet Blocks
-            for block in up.block:
-                h = block(h)
-            # Up-sampling
-            h = up.upsample(h)
+        for i_level in reversed(range(self.num_resolutions)):
+            for i_block in range(self.num_res_blocks+1):
+                h = self.up[i_level].block[i_block](h)
+                if len(self.up[i_level].attn) > 0:
+                    h = self.up[i_level].attn[i_block](h)
+            if i_level != 0:
+                h = self.up[i_level].upsample(h)
 
         # Normalize and map to image space
         h = self.norm_out(h)

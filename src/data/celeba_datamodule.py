@@ -3,18 +3,18 @@ from typing import Any, Dict, Optional, Tuple
 import torch
 from lightning import LightningDataModule
 from torch.utils.data import ConcatDataset, DataLoader, Dataset, random_split
-from torchvision.datasets import CIFAR10
+from torchvision.datasets import CelebA
 from torchvision.transforms import transforms
+import torchvision.datasets as dset
 
-
-class CIFARDataModule(LightningDataModule):
+class CelebADatamodule(LightningDataModule):
     def __init__(
         self,
         data_dir: str = "data/",
         image_channels: int = 3,
-        image_size: int = 32,
+        image_size: int = 128,
         batch_size: int = 64,
-        n_classes: int = 10,
+        n_classes: int = 1,
         num_workers: int = 0,
         pin_memory: bool = False,
     ):
@@ -28,55 +28,45 @@ class CIFARDataModule(LightningDataModule):
         self.transforms = transforms.Compose(
             [
                 transforms.ToTensor(),
-                transforms.Normalize((0.5, 0.5, 0.5), (0.5, 0.5, 0.5)),
+                # transforms.Normalize((0.5, 0.5, 0.5), (0.5, 0.5, 0.5)),
             ]
         )
 
         self.data_train: Optional[Dataset] = None
         self.data_val: Optional[Dataset] = None
 
-    @property
-    def classes(self):
-        return (
-            "plane",
-            "car",
-            "bird",
-            "cat",
-            "deer",
-            "dog",
-            "frog",
-            "horse",
-            "ship",
-            "truck",
-        )
 
-    @property
-    def num_classes(self):
-        return 10
 
     def prepare_data(self):
         """Download data if needed."""
-        CIFAR10(
-            root=self.hparams.data_dir,
-            train=True,
-            download=True,
-            transform=self.transforms,
-        )
-        CIFAR10(
-            root=self.hparams.data_dir,
-            train=False,
-            download=True,
-            transform=self.transforms,
-        )
+        # CelebA(
+        #     root=self.hparams.data_dir,
+        #     split='train',
+        #     download=True,
+        #     transform=self.transforms,
+        # )
+        # CelebA(
+        #     root=self.hparams.data_dir,
+        #     split='valid',
+        #     download=True,
+        #     transform=self.transforms,
+        # )
+        pass
 
     def setup(self, stage: Optional[str] = None):
         # load and split datasets only if not loaded already
         if not self.data_train and not self.data_val:
-            self.data_train = CIFAR10(
-                root=self.hparams.data_dir, train=True, transform=self.transforms
-            )
-            self.data_val = CIFAR10(
-                root=self.hparams.data_dir, train=False, transform=self.transforms
+            dataset = dset.ImageFolder(root=self.hparams.data_dir + 'celeba/',
+                           transform=transforms.Compose([
+                               transforms.Resize(self.hparams.image_size),
+                               transforms.CenterCrop(self.hparams.image_size),
+                               transforms.ToTensor(),
+                               transforms.Normalize((0.5, 0.5, 0.5), (0.5, 0.5, 0.5)),
+                           ]))
+            self.data_train, self.data_val = random_split(
+                dataset=dataset,
+                lengths=[27000, 3000],
+                generator=torch.Generator().manual_seed(42),
             )
 
     def train_dataloader(self):
@@ -99,7 +89,8 @@ class CIFARDataModule(LightningDataModule):
 
 
 if __name__ == "__main__":
-    _ = CIFARDataModule()
+    _ = CelebADatamodule()
+    _.prepare_data()
     _.setup()
     images, labels = next(iter(_.train_dataloader()))
     print(images.shape)

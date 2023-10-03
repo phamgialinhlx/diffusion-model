@@ -5,8 +5,8 @@
 defaults:
   - _self_
   - data: mnist.yaml
-  - model: autoencoder.yaml
-  - callbacks: ae_callbacks.yaml
+  - model: diffusion.yaml
+  - callbacks: diffusion_callbacks.yaml
   - logger: wandb.yaml # set logger here or use command line (e.g. `python train.py logger=tensorboard`)
   - trainer: default.yaml
   - paths: default.yaml
@@ -28,7 +28,7 @@ defaults:
   - debug: null
 
 # task name, determines output directory path
-task_name: "train_autoencoder"
+task_name: "train_diffusion"
 
 # tags to help you identify your experiments
 # you can overwrite this in experiment configs

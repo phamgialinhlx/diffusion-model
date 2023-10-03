@@ -1,0 +1,12 @@
+_target_: src.data.lsun_datamodule.LSUNBedroomDataModule
+batch_size: 8
+image_size: 128 # origin: 256
+image_channels: 3
+num_workers: 12
+
+transform:
+  _target_: torchvision.transforms.Compose
+  transforms:
+    - _target_: torchvision.transforms.ToTensor
+    - _target_: torchvision.transforms.Resize
+      size: ${data.image_size}
