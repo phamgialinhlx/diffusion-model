@@ -20,7 +20,7 @@ wandb==0.15.8
 pyrootutils==1.0.4     # standardizing the project root setup
 pre-commit==3.3.3      # hooks for applying linters on commit
 rich==13.5.2           # beautiful text formatting in terminal
-pytest==7.4.0          # tests
+pytest==7.4.3          # tests
 lpips==0.1.4
 ipython==8.12.2        # for debugging
 einops==0.6.1
