@@ -61,22 +61,23 @@ def inference(cfg: DictConfig):
     datamodule.setup()
     print(f"Instantiating model <{cfg.model._target_}>")
     model: LightningModule = hydra.utils.instantiate(cfg.model)
-    assert cfg.ckpt_path is not None
-    model = model.load_from_checkpoint(cfg.ckpt_path, loss=model.loss).to("cuda")
 
     images, labels = next(iter(datamodule.train_dataloader()))
     images = images.to("cuda")
+    model = model.to("cuda")
     output = model(images)
+    from IPython import embed
+    embed()
     out_images, posterior = output
     out_images = make_grid(
-        torch.cat([images, out_images], dim=3),
+        torch.cat([images, out_images], dim=datamodule.hparams.image_channels),
         nrow=16,
         normalize=True,
         value_range=(-1, 1),
     )
     save_image(out_images, "test.png")
 
-    interpolate_process(model, images[188], images[40], num_steps=54)
+    interpolate_process(model, images[0], images[1], num_steps=54)
     noise_images = torch.randn(posterior.sample().shape).to("cuda")
     out_noise_images = model.decode(noise_images)
     out_noise_images = make_grid(
@@ -90,3 +91,4 @@ if __name__ == "__main__":
 
 # python src/inference_ae.py data=cifar.yaml data.batch_size=256 ckpt_path="/work/hpc/pgl/lung-diffusion/outputs/2023-08-14_17-47-05/checkpoints/last.ckpt" task_name="inference"
 # python src/inference_ae.py data=cifar.yaml data.batch_size=256 ckpt_path="/work/hpc/pgl/lung-diffusion/outputs/2023-08-29_09-58-11/checkpoints/last.ckpt" task_name="inference"
+# python src/inference_ae.py data=mnist.yaml data.batch_size=128 ckpt_path="/mnt/work/Code/lung-diffusion/logs/develop/runs/2023-12-01_15-06-58/checkpoints/epoch_020.ckpt" task_name="inference"

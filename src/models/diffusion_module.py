@@ -10,7 +10,8 @@ from lightning import LightningModule
 from torchmetrics.image import StructuralSimilarityIndexMeasure, PeakSignalNoiseRatio
 from torch.optim import Optimizer, lr_scheduler
 from src.utils.ema import LitEma
-from src.models.vqmodel_module import VQModel
+from src.models.vqvae_module import VQVAE
+from src.models.klvae_module import KLVAE
 from src.models.diffusion.sampler import BaseSampler
 from src.models.diffusion.sampler.ddpm import DDPMSampler
 
@@ -20,13 +21,18 @@ def gather(consts: torch.Tensor, t: torch.Tensor, device="cuda"):
     c = consts.to(device).gather(-1, t.to(device))
     return c.reshape(-1, 1, 1, 1)
 
+def load_autoencoder(ckpt_path):
+    try:
+        ae = KLVAE.load_from_checkpoint(ckpt_path).eval()
+    except Exception as e:
+        ae = VQVAE.load_from_checkpoint(ckpt_path).eval()
+    ae.freeze()
+    return ae
 
 class DiffusionModule(LightningModule):
     def __init__(
         self,
         net: torch.nn.Module,
-        autoencoder,
-        autoencoderconfig,
         autoencoder_ckpt_path,
         optimizer: Optimizer,
         scheduler: lr_scheduler,
@@ -36,11 +42,8 @@ class DiffusionModule(LightningModule):
         super().__init__()
         self.save_hyperparameters(logger=False)
 
-        self.autoencoder = autoencoder
-        if self.autoencoder is not None:
-            self.autoencoder.init_from_ckpt(autoencoder_ckpt_path, ignore_keys=["loss"])
-            self.autoencoder.eval()
-            self.autoencoder.freeze()
+        self.autoencoder = load_autoencoder(autoencoder_ckpt_path)
+
         self.net = net
         self.sampler = sampler
         # exponential moving average
@@ -83,7 +86,7 @@ class DiffusionModule(LightningModule):
         if self.autoencoder is None:
             return x
         else:
-            if type(self.autoencoder) is VQModel:
+            if type(self.autoencoder) is VQVAE:
                 return self.autoencoder.encode(x)[0]
             else:
                 return self.autoencoder.encode(x).sample()

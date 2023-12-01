@@ -1,4 +1,4 @@
-_target_: src.models.vqmodel_module.VQModel
+_target_: src.models.vqvae_module.VQVAE
 
 loss: 
   _target_: src.models.modules.losses.vqperceptual.VQLPIPSWithDiscriminator
@@ -18,3 +18,4 @@ n_embed: 16384
 lr: 5.0e-5
 remap: !!null
 use_ema: True
+ckpt_path: !!null

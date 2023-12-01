@@ -1,0 +1,41 @@
+# @package _global_
+
+defaults:
+  - override /data: mnist.yaml
+  - override /model: diffusion.yaml
+  - override /callbacks: diffusion_callbacks.yaml
+  - override /trainer: gpu.yaml
+
+tags: ["mnist", "ddim"]
+
+data:
+  num_workers: 2
+  batch_size: 16
+
+model:
+  autoencoder_ckpt_path: "/mnt/work/Code/lung-diffusion/outputs/vqmodel_f16_mnist/checkpoints/last.ckpt"
+  sampler:
+    _target_: src.models.diffusion.sampler.ddim.DDIMSampler
+
+  # optimizer:
+  #   _target_: torch.optim.AdamW
+  #   _partial_: true
+  #   lr: 0.0005
+  
+  # scheduler:
+  #   _target_: src.utils.lr_scheduler.LambdaWarmUpScheduler3
+  #   warm_up_steps: 5000
+  net:
+    _target_: src.models.diffusion.unet.UNetModel
+    image_size: 16
+    in_channels: 16
+    out_channels: 16
+    model_channels: 192
+    channel_mult: [1, 2, 4]
+    attention_resolutions: [1, 2, 4, 8]
+    num_heads: 8
+    num_res_blocks: 2
+
+callbacks:
+  log_image:
+    frequency: 1

@@ -15,8 +15,7 @@ pyrootutils.setup_root(__file__, indicator=".project-root", pythonpath=True)
 from src.models.modules.diffusionmodules import Encoder, Decoder
 from src.models.modules.distributions import DiagonalGaussianDistribution
 
-
-class Autoencoder(LightningModule):
+class KLVAE(LightningModule):
     """
     ## Autoencoder
 
@@ -41,6 +40,7 @@ class Autoencoder(LightningModule):
         :param z_channels: is the number of channels in the embedding space
         """
         super().__init__()
+        self.save_hyperparameters(logger=False)
         self.automatic_optimization = False
         self.image_key = image_key
         self.loss = loss

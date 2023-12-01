@@ -10,6 +10,7 @@ from torch.optim.lr_scheduler import LambdaLR
 import numpy as np
 import hydra
 from omegaconf import DictConfig
+from lightning import LightningModule
 
 import pyrootutils
 
@@ -19,16 +20,14 @@ from src.models.modules.diffusionmodules import Encoder, Decoder
 from src.models.modules.distributions import DiagonalGaussianDistribution
 from src.models.modules.vqvae.quantize import VectorQuantizer2 as VectorQuantizer
 from src.utils.ema import LitEma
-from lightning import LightningModule
 
-
-class VQModel(LightningModule):
+class VQVAE(LightningModule):
     def __init__(
         self,
         embed_dim,
-        n_embed,
         autoencoderconfig,
         loss,
+        n_embed: int = 16384,
         image_key=0,
         ckpt_path=None,
         ignore_keys=[],
@@ -43,12 +42,13 @@ class VQModel(LightningModule):
         use_ema=False,
     ):
         super().__init__()
+        self.save_hyperparameters(logger=False)
         self.automatic_optimization = False
         self.embed_dim = embed_dim
         self.n_embed = n_embed
         self.image_key = image_key
-        self.encoder = Encoder(**autoencoderconfig)
-        self.decoder = Decoder(**autoencoderconfig)
+        self.encoder = Encoder(**self.hparams.autoencoderconfig)
+        self.decoder = Decoder(**self.hparams.autoencoderconfig)
         self.loss = loss
         self.quantize = VectorQuantizer(
             n_embed,
@@ -57,8 +57,8 @@ class VQModel(LightningModule):
             remap=remap,
             sane_index_shape=sane_index_shape,
         )
-        self.quant_conv = torch.nn.Conv2d(autoencoderconfig["z_channels"], embed_dim, 1)
-        self.post_quant_conv = torch.nn.Conv2d(embed_dim, autoencoderconfig["z_channels"], 1)
+        self.quant_conv = torch.nn.Conv2d(self.hparams.autoencoderconfig["z_channels"], embed_dim, 1)
+        self.post_quant_conv = torch.nn.Conv2d(embed_dim, self.hparams.autoencoderconfig["z_channels"], 1)
         if colorize_nlabels is not None:
             assert type(colorize_nlabels) == int
             self.register_buffer("colorize", torch.randn(3, colorize_nlabels, 1, 1))
@@ -329,7 +329,11 @@ class VQModel(LightningModule):
         return self.decoder.conv_out.weight
     
     @torch.no_grad()
-    def log_image(self, images):
+    def log_image(
+        self, 
+        images, 
+        device: torch.device = torch.device('cpu'),
+    ):
         # # Encode
         # h = self.encoder(images)
         # h = self.quant_conv(h)

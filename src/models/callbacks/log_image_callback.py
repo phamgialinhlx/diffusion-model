@@ -1,4 +1,5 @@
 import torch
+import math
 import wandb
 from torchvision.utils import make_grid
 import lightning as pl
@@ -18,24 +19,11 @@ class LogImageCallback(Callback):
     ) -> None:
         self.count += 1
         if self.count % self.frequency == 0:
-            nrows = 8
-            # from IPython import embed
-            # embed()
             origin = next(iter(trainer.val_dataloaders))[0].to(pl_module.device)
 
             image = pl_module.log_image(origin, device=pl_module.device)
 
-            if image.shape[0] == 2 or image.shape[0] == 1:
-                nrows = 1
-
-            if image.shape[0] == 8 or image.shape[0] == 4:
-                nrows = 2
-
-            if image.shape[0] == 16 or image.shape[0] == 32:
-                nrows = 4
-            
-            if image.shape[0] == 256:
-                nrows = 16
+            nrows = math.ceil(math.sqrt(image.shape[0]))
 
             value_range = (-1, 1) if image.shape[1] != 1 else (0, 1)
             compare = make_grid(
