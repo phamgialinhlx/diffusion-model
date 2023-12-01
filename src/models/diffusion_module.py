@@ -3,17 +3,21 @@ from contextlib import contextmanager
 
 import torch
 import torch.nn.functional as F
-from torch import nn
+from torch import nn, Tensor
+from tqdm import tqdm
 import math
 from lightning import LightningModule
 from torchmetrics.image import StructuralSimilarityIndexMeasure, PeakSignalNoiseRatio
 from torch.optim import Optimizer, lr_scheduler
 from src.utils.ema import LitEma
 from src.models.vqmodel_module import VQModel
+from src.models.diffusion.sampler import BaseSampler
+from src.models.diffusion.sampler.ddpm import DDPMSampler
 
-def gather(consts: torch.Tensor, t: torch.Tensor):
+
+def gather(consts: torch.Tensor, t: torch.Tensor, device="cuda"):
     """Gather consts for $t$ and reshape to feature map shape"""
-    c = consts.gather(-1, t)
+    c = consts.to(device).gather(-1, t.to(device))
     return c.reshape(-1, 1, 1, 1)
 
 
@@ -27,28 +31,18 @@ class DiffusionModule(LightningModule):
         optimizer: Optimizer,
         scheduler: lr_scheduler,
         use_ema: bool = False,
-        num_timesteps: int = 1000,
-        beta_small: float = 0.0001,
-        beta_large: float = 0.02,
+        sampler: BaseSampler = DDPMSampler(),
     ):
         super().__init__()
         self.save_hyperparameters(logger=False)
 
         self.autoencoder = autoencoder
         if self.autoencoder is not None:
-            self.autoencoder.init_from_ckpt(
-                autoencoder_ckpt_path, ignore_keys=["loss"]
-            )
+            self.autoencoder.init_from_ckpt(autoencoder_ckpt_path, ignore_keys=["loss"])
             self.autoencoder.eval()
             self.autoencoder.freeze()
         self.net = net
-        self.num_timesteps = num_timesteps
-        self.beta = torch.linspace(beta_small, beta_large, num_timesteps).to(
-            self.device
-        )
-        self.alpha = torch.tensor(1.0 - self.beta).to(self.device)
-        self.alpha_bar = torch.cumprod(self.alpha, dim=0).to(self.device)
-        self.sigma2 = self.beta
+        self.sampler = sampler
         # exponential moving average
         self.use_ema = use_ema
         if self.use_ema:
@@ -73,43 +67,14 @@ class DiffusionModule(LightningModule):
                 if context is not None:
                     print(f"{context}: Restored training weights")
 
-    def q_xt_x0(
-        self, x0: torch.Tensor, t: torch.Tensor
-    ) -> Tuple[torch.Tensor, torch.Tensor]:
-        self.alpha_bar = self.alpha_bar.to(x0.device)
-        mean = gather(self.alpha_bar, t) ** 0.5 * x0
-        var = 1.0 - gather(self.alpha_bar, t)
-
-        return mean, var
-
-    def q_sample(
-        self, x0: torch.Tensor, t: torch.Tensor, eps: Optional[torch.Tensor] = None
-    ):
-        if eps is None:
-            eps = torch.randn_like(x0)
-
-        mean, var = self.q_xt_x0(x0, t)
-        return mean + (var**0.5) * eps
-
-    def p_sample(self, xt: torch.Tensor, t: torch.Tensor):
-        eps_theta = self.net(xt, t)
-        alpha_bar = gather(self.alpha_bar, t)
-        alpha = gather(self.alpha, t)
-        eps_coef = (1 - alpha) / (1 - alpha_bar) ** 0.5
-        mean = 1 / (alpha**0.5) * (xt - eps_coef * eps_theta)
-        var = gather(self.sigma2, t)
-        eps = torch.randn(xt.shape, device=xt.device)
-        return mean + (var**0.5) * eps
-
     def loss(self, x0: torch.Tensor, noise: Optional[torch.Tensor] = None):
-        batch_size = x0.shape[0]
         t = torch.randint(
-            0, self.num_timesteps, (batch_size,), device=x0.device, dtype=torch.long
+            0,
+            self.sampler.n_train_steps,
+            [x0.shape[0]],
+            device=x0.device,
         )
-        if noise is None:
-            noise = torch.randn_like(x0).to(x0.device)
-
-        xt = self.q_sample(x0, t, eps=noise)
+        xt, noise = self.sampler.step(x0, t, noise)
         eps_theta = self.net(xt, t)
         return F.mse_loss(noise, eps_theta)
 
@@ -130,6 +95,7 @@ class DiffusionModule(LightningModule):
 
     def training_step(self, batch: Any, batch_idx: int):
         loss = self.model_step(batch)
+        self.log("train/lr", self.trainer.optimizers[0].param_groups[0]["lr"])
         self.log("train/loss", loss, on_step=False, on_epoch=True, prog_bar=True)
         return loss
 
@@ -154,44 +120,49 @@ class DiffusionModule(LightningModule):
                 "lr_scheduler": {
                     "scheduler": scheduler,
                     "monitor": "val/loss",
-                    "interval": "step",
+                    "interval": "epoch",
                     "frequency": 1,
                 },
             }
         return {"optimizer": optimizer}
 
     @torch.no_grad()
-    def log_image(self, images):
-        x = self.autoencoder_encode(images)
-        x = torch.randn(x.shape).to("cuda")
-
-        sample_steps = torch.arange(self.num_timesteps - 1, 0, -1).to("cuda")
+    def log_image(
+        self,
+        xt,
+        noise: torch.Tensor = None,
+        repeat_noise: bool = False,
+        cond: Tensor = None,
+        device: torch.device = torch.device('cpu'),
+        prog_bar: bool = True,
+    ) -> Tensor:
+        xt = self.autoencoder_encode(xt)
+        xt = torch.randn(xt.shape).to(device)
+        sample_steps = (
+            tqdm(self.sampler.timesteps, desc="Sampling t")
+            if prog_bar
+            else self.sampler.timesteps
+        )
+        
         if self.use_ema:
             # generate sample by ema_model
             with self.ema_scope():
-                for t in sample_steps:
-                    if t > 1:
-                        z = torch.randn(x.shape).to("cuda")
-                    else:
-                        z = 0
-                    e_hat = self.net(x, t.repeat(x.shape[0]).type(torch.float))
-                    pre_scale = 1 / math.sqrt(self.alpha[t])
-                    e_scale = (1 - self.alpha[t]) / math.sqrt(1 - self.alpha_bar[t])
-                    post_sigma = math.sqrt(self.beta[t]) * z
-                    x = pre_scale * (x - e_scale * e_hat) + post_sigma
+                for i, t in enumerate(sample_steps):
+                    
+                    t = torch.full((xt.shape[0],), t, device=device, dtype=torch.int64)
+                    model_output = self.net(x=xt, timesteps=t, cond=cond)
+                    xt = self.sampler.reverse_step(
+                        model_output, t, xt, noise, repeat_noise
+                    )
         else:
-            for t in sample_steps:
-                if t > 1:
-                    z = torch.randn(x.shape).to("cuda")
-                else:
-                    z = 0
-                e_hat = self.net(x, t.repeat(x.shape[0]).type(torch.float))
-                pre_scale = 1 / math.sqrt(self.alpha[t])
-                e_scale = (1 - self.alpha[t]) / math.sqrt(1 - self.alpha_bar[t])
-                post_sigma = math.sqrt(self.beta[t]) * z
-                x = pre_scale * (x - e_scale * e_hat) + post_sigma
+            for i, t in enumerate(sample_steps):
+                t = torch.full((xt.shape[0],), t, device=device, dtype=torch.int64)
+                model_output = self.net(x=xt, timesteps=t, cond=cond)
+                xt = self.sampler.reverse_step(
+                    model_output, t, xt, noise, repeat_noise
+                )
         if self.autoencoder is not None:
-            out_images = self.autoencoder.decode(x)
+            out_images = self.autoencoder.decode(xt)
         else:
-            out_images = x
+            out_images = xt
         return out_images

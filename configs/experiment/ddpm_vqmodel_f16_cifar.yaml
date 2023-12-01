@@ -1,0 +1,36 @@
+# @package _global_
+
+defaults:
+  - override /data: cifar.yaml
+  - override /model: diffusion.yaml
+  - override /callbacks: diffusion_callbacks.yaml
+  - override /trainer: gpu.yaml
+
+tags: ["cifar", "ddpm"]
+
+data:
+  num_workers: 48
+  batch_size: 32
+
+model:
+  autoencoder: 
+    _target_: src.models.vqmodel_module.VQModel
+    n_embed: 16384
+  
+  autoencoderconfig:
+    channels: ${data.image_size}
+    channel_multipliers: [1, 2]
+    n_resnet_blocks: 2
+    img_channels: ${data.image_channels}
+    z_channels: 16
+    double_z: False
+    resolution: ${data.image_size}
+    attn_resolutions:
+    - 16
+    out_img_size: 16
+    out_channels: 16
+  autoencoder_ckpt_path: "/work/hpc/pgl/lung-diffusion/outputs/vqmodel_f16_cifar/checkpoints/last.ckpt"
+
+callbacks:
+  log_image:
+    frequency: 1

@@ -1,12 +1,8 @@
 _target_: src.models.diffusion_module.DiffusionModule
 
-# loss_type: "l2"
-num_timesteps: 1000
-beta_small: 1.0e-4
-beta_large: 0.02
-
 defaults:
   - autoencoderconfig: autoencoder_kl_64x8x8.yaml
+  - sampler: ddpm.yaml
 
 autoencoder:
   _target_: src.models.autoencoder_module.Autoencoder
@@ -51,10 +47,3 @@ net:
   attention_resolutions: [1, 2, 4, 8]
   num_heads: 8
   num_res_blocks: 2
-
-# net:
-#   _target_: src.models.diffusion.custom_unet.UNetModel
-#   in_size: ${model.autoencoderconfig.out_img_size}
-#   img_channels: ${model.autoencoderconfig.out_channels}
-#   t_range: ${model.num_timesteps}
-#   bilinear: True

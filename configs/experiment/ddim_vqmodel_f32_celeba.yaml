@@ -1,0 +1,45 @@
+# @package _global_
+
+defaults:
+  - override /data: celeba.yaml
+  - override /model: diffusion.yaml
+  - override /callbacks: diffusion_callbacks.yaml
+  - override /trainer: gpu.yaml
+
+tags: ["celeba", "ddim"]
+
+data:
+  num_workers: 6
+  batch_size: 32
+
+model:
+  autoencoder: 
+    _target_: src.models.vqmodel_module.VQModel
+    n_embed: 16384
+  
+  autoencoderconfig:
+    channels: ${data.image_size}
+    channel_multipliers: [1, 2, 4, 4]
+    n_resnet_blocks: 2
+    img_channels: ${data.image_channels}
+    z_channels: 4
+
+    out_img_size: 32
+    out_channels: 4
+
+  autoencoder_ckpt_path: "/work/hpc/pgl/lung-diffusion/outputs/vqmodel_f16_celeba/checkpoints/last.ckpt"
+  sampler:
+    _target_: src.models.diffusion.sampler.ddim.DDIMSampler
+
+  # optimizer:
+  #   _target_: torch.optim.AdamW
+  #   _partial_: true
+  #   lr: 0.0005
+  
+  # scheduler:
+  #   _target_: src.utils.lr_scheduler.LambdaWarmUpScheduler3
+  #   warm_up_steps: 5000
+
+callbacks:
+  log_image:
+    frequency: 1
