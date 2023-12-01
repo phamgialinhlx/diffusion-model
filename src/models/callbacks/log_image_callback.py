@@ -19,9 +19,11 @@ class LogImageCallback(Callback):
         self.count += 1
         if self.count % self.frequency == 0:
             nrows = 8
+            # from IPython import embed
+            # embed()
             origin = next(iter(trainer.val_dataloaders))[0].to(pl_module.device)
 
-            image = pl_module.log_image(origin)
+            image = pl_module.log_image(origin, device=pl_module.device)
 
             if image.shape[0] == 2 or image.shape[0] == 1:
                 nrows = 1
@@ -29,12 +31,9 @@ class LogImageCallback(Callback):
             if image.shape[0] == 8 or image.shape[0] == 4:
                 nrows = 2
 
-            if image.shape[0] == 16:
+            if image.shape[0] == 16 or image.shape[0] == 32:
                 nrows = 4
             
-            if image.shape[0] == 32:
-                nrows = 8
-
             if image.shape[0] == 256:
                 nrows = 16
 
