@@ -1,0 +1,44 @@
+# @package _global_
+
+# to execute this experiment run:
+# python train.py experiment=example
+
+defaults:
+  - override /data: mnist.yaml
+  - override /model: diffusion.yaml
+  - override /callbacks: diffusion_callbacks.yaml
+  - override /trainer: gpu.yaml
+
+# all parameters below will be merged with parameters from default configurations set above
+# this allows you to overwrite only specified parameters
+
+
+model:
+  autoencoder_ckpt_path: "./outputs/vqmodel_f16_mnist/checkpoints/last.ckpt"
+  sampler:
+    _target_: src.models.diffusion.sampler.ddim.DDIMSampler
+
+  net:
+    _target_: src.models.diffusion.unet.UNetModel
+    image_size: 16
+    in_channels: 16
+    out_channels: 16
+    model_channels: 192
+    channel_mult: [1, 2]
+    attention_resolutions: [1, 2, 4]
+    num_heads: 8
+    num_res_blocks: 1
+
+data:
+  num_workers: 24
+  batch_size: 64
+  train_val_test_split: [128, 128, 128]
+  
+callbacks:
+  log_image:
+    frequency: 1
+
+trainer:
+  max_epochs: 5
+
+task_name: "develop"

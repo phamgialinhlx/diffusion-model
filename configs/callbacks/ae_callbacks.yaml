@@ -3,6 +3,7 @@ defaults:
   - model_summary.yaml
   - rich_progress_bar.yaml
   - log_image.yaml
+  - log_metrics.yaml
   - _self_
 
 model_checkpoint:
@@ -13,6 +14,21 @@ model_checkpoint:
   save_last: True
   auto_insert_metric_name: False
 
+log_metrics:
+  ssim:
+    _target_: torchmetrics.image.StructuralSimilarityIndexMeasure
+    data_range: 1.0
+  psnr:
+    _target_: torchmetrics.image.PeakSignalNoiseRatio
+    data_range: 1.0
+  # fid:
+  #   _target_: torchmetrics.image.FrechetInceptionDistance
+  #   feature: 2048
+  #   normalize: True
+  # is:
+  #   _target_: torchmetrics.image.InceptionScore
+  #   feature: 2048
+  #   normalize: True
 
 model_summary:
   max_depth: -1

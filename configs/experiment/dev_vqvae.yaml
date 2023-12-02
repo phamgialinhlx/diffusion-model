@@ -44,4 +44,7 @@ callbacks:
   log_image:
     frequency: 1
 
+trainer:
+  max_epochs: 5
+
 task_name: "develop"

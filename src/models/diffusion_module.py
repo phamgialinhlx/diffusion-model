@@ -107,6 +107,11 @@ class DiffusionModule(LightningModule):
         self.log("val/loss", loss, on_step=False, on_epoch=True, prog_bar=True)
         return loss
 
+    def test_step(self, batch: Any, batch_idx: int):
+        loss = self.model_step(batch)
+        self.log("test/loss", loss, on_step=False, on_epoch=True, prog_bar=True)
+        return loss
+
     def configure_optimizers(self) -> Dict[str, Any]:
         """Choose what optimizers and learning-rate schedulers to use in your optimization.
         Normally you'd need one. But in the case of GANs or similar you might have multiple.
