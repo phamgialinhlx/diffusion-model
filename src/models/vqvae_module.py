@@ -80,8 +80,6 @@ class VQVAE(LightningModule):
         self.scheduler_config = scheduler_config
         self.lr_g_factor = lr_g_factor
         self.learning_rate = lr
-        self.ssim = StructuralSimilarityIndexMeasure(data_range=(-1.0, 1.0))
-        self.psnr = PeakSignalNoiseRatio(data_range=(-1.0, 1.0))
 
     @contextmanager
     def ema_scope(self, context=None):
@@ -167,14 +165,6 @@ class VQVAE(LightningModule):
             x = x.detach()
         return x
     
-    def on_train_start(self) -> None:
-        self.ssim.reset()
-        self.psnr.reset()
-
-    def on_validation_start(self) -> None:
-        self.ssim.reset()
-        self.psnr.reset()
-
     def training_step(self, batch, batch_idx):
         # https://github.com/pytorch/pytorch/issues/37142
         # try not to fool the heuristics
@@ -221,27 +211,12 @@ class VQVAE(LightningModule):
         self.manual_backward(discloss)
         opt_disc.step()
 
-        self.ssim.update(xrec, x)
-        self.psnr.update(xrec, x)
-        self.log(
-            "train/ssim",
-            self.ssim.compute(),
-            on_step=False,
-            on_epoch=True,
-            prog_bar=False,
-        )
-        self.log(
-            "train/psnr",
-            self.psnr.compute(),
-            on_step=False,
-            on_epoch=True,
-            prog_bar=False,
-        )
-
     def validation_step(self, batch, batch_idx):
-        log_dict = self._validation_step(batch, batch_idx)
-        with self.ema_scope():
-            log_dict_ema = self._validation_step(batch, batch_idx, suffix="_ema")
+        if self.use_ema:
+            with self.ema_scope():
+                log_dict_ema = self._validation_step(batch, batch_idx)
+        else:
+            log_dict = self._validation_step(batch, batch_idx)
 
     def _validation_step(self, batch, batch_idx, suffix=""):
         x = self.get_input(batch, self.image_key)
@@ -268,24 +243,46 @@ class VQVAE(LightningModule):
             # predicted_indices=ind,
         )
 
-        self.ssim.update(xrec, x)
-        self.psnr.update(xrec, x)
-        self.log(
-            f"val{suffix}/ssim",
-            self.ssim.compute(),
-            on_step=False,
-            on_epoch=True,
-            prog_bar=False,
-        )
-        self.log(
-            f"val{suffix}/psnr",
-            self.psnr.compute(),
-            on_step=False,
-            on_epoch=True,
-            prog_bar=False,
+        self.log(f"val{suffix}/rec_loss", log_dict_ae[f"val{suffix}/rec_loss"])
+        self.log_dict(log_dict_ae)
+        self.log_dict(log_dict_disc)
+        return self.log_dict
+
+    def test_step(self, batch, batch_idx) -> None:
+        from IPython import embed
+        embed()
+        if self.use_ema:
+            with self.ema_scope():
+                log_dict_ema = self._test_step(batch, batch_idx, suffix="")
+        else:
+            log_dict = self._test_step(batch, batch_idx)
+
+    def _test_step(self, batch, batch_idx, suffix=""):
+        x = self.get_input(batch, self.image_key)
+        xrec, qloss, ind = self(x, return_pred_indices=True)
+        aeloss, log_dict_ae = self.loss(
+            qloss,
+            x,
+            xrec,
+            0,
+            self.global_step,
+            last_layer=self.get_last_layer(),
+            split="test" + suffix,
+            # predicted_indices=ind,
         )
 
-        self.log(f"val{suffix}/rec_loss", log_dict_ae[f"val{suffix}/rec_loss"])
+        discloss, log_dict_disc = self.loss(
+            qloss,
+            x,
+            xrec,
+            1,
+            self.global_step,
+            last_layer=self.get_last_layer(),
+            split="test" + suffix,
+            # predicted_indices=ind,
+        )
+
+        self.log(f"test{suffix}/rec_loss", log_dict_ae[f"test{suffix}/rec_loss"])
         self.log_dict(log_dict_ae)
         self.log_dict(log_dict_disc)
         return self.log_dict
@@ -341,7 +338,10 @@ class VQVAE(LightningModule):
         # # Decode
         # quant = self.post_quant_conv(quant)
         # dec = self.decoder(quant)
-        with self.ema_scope():
+        if self.use_ema:
+            with self.ema_scope():
+                dec, _, = self.forward(images)
+        else:
             dec, _, = self.forward(images)
         return dec
 @hydra.main(
