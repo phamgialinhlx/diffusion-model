@@ -65,7 +65,7 @@ class DDIMSampler(BaseSampler):
                                                                      **0.5)
 
         if self.clip_denoised:
-            x0_pred.clamp_(-1.0, 1.0)
+            x0_pred = x0_pred.clamp_(-1.0, 1.0)
 
         # sigma = 0 in formula (12) from https://arxiv.org/pdf/2010.02502.pdf
         mean = alpha_bar_prev**0.5 * x0_pred + (

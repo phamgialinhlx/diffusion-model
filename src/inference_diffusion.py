@@ -76,13 +76,14 @@ def inference(cfg: DictConfig):
     images = images.to("cuda")
     # from IPython import embed
     # embed()
-    # model.sampler = DDIMSampler(n_infer_steps=50).to("cuda")
+    # model.sampler = DDPMSampler().to("cuda")
+    model.sampler = DDIMSampler(n_infer_steps=50, clip_denoised=False).to("cuda")
     # model.use_ema = False
     out_images = model.log_image(images, device="cuda")
 
     out_images = make_grid(
         torch.cat([images, out_images], dim=3),
-        nrow=16,
+        nrow=4,
         normalize=True,
         value_range=(-1, 1),
     )
