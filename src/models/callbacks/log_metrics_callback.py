@@ -1,77 +1,166 @@
 import torch
+from torch import Tensor
 import wandb
 from torchvision.utils import make_grid
 import lightning as pl
-from lightning.pytorch.callbacks.callback import Callback
-from torchmetrics.image import StructuralSimilarityIndexMeasure, PeakSignalNoiseRatio
-
+from pytorch_lightning import LightningModule, Trainer
+from lightning.pytorch.callbacks import Callback
 
 class LogMetricsCallback(Callback):
-    def __init__(self):
+    def __init__(
+            self,
+            ssim=None,
+            psnr=None,
+            fid=None,
+            inception_score=None,
+            mean: float = 0.5,
+            std: float = 0.5
+        ):
         super().__init__()
-        # self.metrics = [
-        #     {
-        #         "name": "ssim",
-        #         "metric": StructuralSimilarityIndexMeasure(data_range=[-1.0, 1.0])
-        #     },
-        #     {
-        #         "name": "psnr",
-        #         "metric": PeakSignalNoiseRatio(data_range=[-1.0, 1.0])
-        #     }
-        # ]
-        self.ssim = StructuralSimilarityIndexMeasure(data_range=[-1.0, 1.0])
-        self.psnr = PeakSignalNoiseRatio(data_range=[-1.0, 1.0])
 
-    @torch.no_grad()
-    def compute_metrics(self, pl_module, dataloader):
-        for batch in dataloader:
-            origin = batch[0].to(pl_module.device)
-            image = pl_module.forward(origin)[0]
-            #     for metric in self.metrics:
-            #         metric["metric"].update(image, origin)
-            self.ssim.update(image, origin)
-            self.psnr.update(image, origin)
+        self.ssim = ssim
+        self.psnr = psnr
+        self.fid = fid
+        self.inception_score = inception_score
+        self.mean = mean
+        self.std = std
 
     @torch.no_grad()
     def reset_metrics(self):
-        # for metric in self.metrics:
-        #     metric["metric"].reset()
-        self.ssim.reset()
-        self.psnr.reset()
+        if self.ssim is not None:
+            self.ssim.reset()
 
-    @torch.no_grad()
-    def on_validation_epoch_end(
-        self, trainer: "pl.Trainer", pl_module: "pl.LightningModule"
-    ) -> None:
-        origin = next(iter(trainer.val_dataloaders))[0].to(pl_module.device)
-        image = pl_module.forward(origin)[0]
+        if self.psnr is not None:
+            self.psnr.reset()
 
-        nrows = 8
-        if image.shape[0] == 256:
-            nrows = 16
+        if self.fid is not None:
+            self.fid.reset()
 
-        compare = make_grid(
-            torch.cat([origin, image], dim=3),
-            nrow=16,
-            normalize=True,
-            value_range=(-1, 1),
-        )
-        origin = make_grid(origin, nrow=nrows, normalize=True, value_range=(-1, 1))
-        image = make_grid(image, nrow=nrows, normalize=True, value_range=(-1, 1))
+        if self.inception_score is not None:
+            self.inception_score.reset()
 
-        self.compute_metrics(pl_module, trainer.val_dataloaders)
-        trainer.logger.experiment.log(
-            {"ssim": self.ssim.compute(), "psnr": self.psnr.compute()}
-        )
+    def on_validation_epoch_start(self, trainer: Trainer,
+                                  pl_module: LightningModule) -> None:
         self.reset_metrics()
 
-        trainer.logger.experiment.log(
-            {
-                "image": [
-                    wandb.Image(origin),
-                    wandb.Image(image),
-                    wandb.Image(compare),
-                ],
-                "caption": ["origin", "reconstruct", "compare"],
+    def on_validation_batch_end(self, trainer: Trainer,
+                                pl_module: LightningModule,
+                                outputs, batch,
+                                batch_idx: int) -> None:
+        images, labels = batch
+        print("here ", batch_idx)
+        image_outputs = self.get_sample(pl_module, images, labels)
+        self.update_metrics(images, image_outputs, device=pl_module.device)
+
+    def on_validation_epoch_end(self, trainer: Trainer,
+                                pl_module: LightningModule) -> None:
+        self.log_metrics(pl_module, mode='val')
+
+    def on_test_epoch_start(self, trainer: Trainer,
+                            pl_module: LightningModule) -> None:
+        self.reset_metrics()
+
+    def on_test_batch_end(self, trainer: Trainer, pl_module: LightningModule,
+                          outputs, batch,
+                          batch_idx: int) -> None:
+        images, labels = batch
+        image_outputs = self.get_sample(pl_module, images, labels)
+        self.update_metrics(images, image_outputs, device=pl_module.device)
+
+    def on_test_epoch_end(self, trainer: Trainer,
+                          pl_module: LightningModule) -> None:
+        self.log_metrics(pl_module, mode='test')
+    
+    def update_metrics(self, reals: Tensor, fakes: Tensor,
+                       device: torch.device):
+        # convert range (-1, 1) to (0, 1)
+        fakes = (fakes * self.std + self.mean).clamp(0, 1)
+        reals = (reals * self.std + self.mean).clamp(0, 1)
+
+        # update
+        if self.ssim is not None:
+            self.ssim.to(device)
+            self.ssim.update(fakes, reals)
+            self.ssim.to('cpu')
+
+        if self.psnr is not None:
+            self.psnr.to(device)
+            self.psnr.update(fakes, reals)
+            self.psnr.to('cpu')
+        
+        # gray image
+        if reals.shape[1] == 1:
+            reals = torch.cat([reals, reals, reals], dim=1)
+            fakes = torch.cat([fakes, fakes, fakes], dim=1)
+
+        reals = torch.nn.functional.interpolate(reals,
+                                                size=(299, 299),
+                                                mode='bilinear')
+        fakes = torch.nn.functional.interpolate(fakes,
+                                                size=(299, 299),
+                                                mode='bilinear')
+
+        if self.fid is not None:
+            self.fid.to(device)
+            self.fid.update(reals, real=True)
+            self.fid.update(fakes, real=False)
+            self.fid.to('cpu')
+
+        if self.inception_score is not None:
+            self.inception_score.to(device)
+            self.inception_score.update(fakes)
+            self.inception_score.to('cpu')
+
+    def get_sample(self,
+                   pl_module: LightningModule,
+                   reals: Tensor | None = None,
+                   conds = None):
+        fakes = pl_module.log_image(reals)
+        return fakes
+    
+    def log_metrics(self, pl_module: LightningModule, mode: str):
+        if self.ssim is not None:
+            self.ssim.to(pl_module.device)
+            pl_module.log(mode + '/ssim',
+                          self.ssim.compute(),
+                          on_step=False,
+                          on_epoch=True,
+                          prog_bar=False,
+                          sync_dist=True)
+            self.ssim.to('cpu')
+
+        if self.psnr is not None:
+            self.psnr.to(pl_module.device)
+            pl_module.log(mode + '/psnr',
+                          self.psnr.compute(),
+                          on_step=False,
+                          on_epoch=True,
+                          prog_bar=False,
+                          sync_dist=True)
+            self.psnr.to('cpu')
+
+        if self.fid is not None:
+            self.fid.to(pl_module.device)
+            pl_module.log(mode + '/fid',
+                          self.fid.compute(),
+                          on_step=False,
+                          on_epoch=True,
+                          prog_bar=False,
+                          sync_dist=True)
+            self.fid.to('cpu')
+
+        if self.inception_score is not None:
+            self.inception_score.to(pl_module.device)
+            mean, std = self.inception_score.compute()
+            range = {
+                'min': mean - std,
+                'max': mean + std,
             }
-        )
+
+            pl_module.log(mode + '/is',
+                          range,
+                          on_step=False,
+                          on_epoch=True,
+                          prog_bar=False,
+                          sync_dist=True)
+            self.inception_score.to('cpu') 
