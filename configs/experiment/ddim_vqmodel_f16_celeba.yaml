@@ -17,7 +17,7 @@ model:
   autoencoder_ckpt_path: "/work/hpc/pgl/lung-diffusion/outputs/vqmodel_f16_celeba/checkpoints/epoch_171.ckpt"
   sampler:
     _target_: src.models.diffusion.sampler.ddim.DDIMSampler
-    clip_denoised: true
+    clip_denoised: False
   net:
     _target_: src.models.diffusion.unet.UNetModel
     image_size: 16
