@@ -1,0 +1,7 @@
+_target_: src.data.lidc_datamodule.LIDCDatamodule
+data_dir: ${paths.data_dir}
+batch_size: 128
+train_val_split: [1152, 128]
+augmentation: False
+num_workers: 6
+pin_memory: False
